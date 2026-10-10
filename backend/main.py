@@ -15,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship,
 class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/interview_tracker"
     secret_key: str = "development-only-change-this-secret"
-    admin_username: str = "teacher"
+    admin_username: str = "Admin"
     admin_password: str = "ChangeMe123!"
     frontend_origin: str = "http://localhost:5173"
     class Config:
