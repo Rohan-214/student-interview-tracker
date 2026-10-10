@@ -9,7 +9,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 from pydantic_settings import BaseSettings
-from sqlalchemy import create_engine, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import create_engine, String, Text, DateTime, ForeignKey, func, inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session
 
 class Settings(BaseSettings):
@@ -56,6 +56,7 @@ class Interview(Base):
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     mode: Mapped[str] = mapped_column(String(30), default="Online")
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    compensation: Mapped[str | None] = mapped_column(String(120), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     participants: Mapped[list["Participant"]] = relationship(back_populates="interview", cascade="all, delete-orphan")
@@ -68,6 +69,7 @@ class Participant(Base):
     attendance: Mapped[str] = mapped_column(String(20), default="Not marked")
     result: Mapped[str] = mapped_column(String(20), default="Pending")
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    compensation: Mapped[str | None] = mapped_column(String(120), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     interview: Mapped[Interview] = relationship(back_populates="participants")
     student: Mapped[Student] = relationship(back_populates="participations")
@@ -89,16 +91,28 @@ class InterviewIn(BaseModel):
     student_ids: list[int] = []
 class InterviewOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int; company: str; role: str; scheduled_at: datetime; mode: str; location: str | None; notes: str | None
+    id: int; company: str; role: str; scheduled_at: datetime; mode: str; location: str | None; compensation: str | None; notes: str | None
     model_config = ConfigDict(from_attributes=True)
+class SelectedResultOut(BaseModel):
+    id: int
+    student_name: str
+    company: str
+    role: str
+    work_location: str | None
+    compensation: str | None
+    scheduled_at: datetime
 class ParticipantOut(BaseModel):
-    id: int; interview_id: int; student_id: int; student_name: str; attendance: str; result: str; feedback: str | None
+    id: int; interview_id: int; student_id: int; student_name: str; attendance: str; result: str; feedback: str | None; compensation: str | None
 class ParticipantUpdate(BaseModel):
     attendance: str = Field(pattern="^(Not marked|Present|Absent)$")
     result: str = Field(pattern="^(Pending|Selected|Rejected)$")
     feedback: str | None = None
+    compensation: str | None = Field(default=None, max_length=120)
     @model_validator(mode="after")
     def rejection_needs_feedback(self):
+        if self.attendance == "Absent":
+            self.result = "Rejected"
+            self.feedback = "Student did not attend the interview."
         if self.result == "Rejected" and not (self.feedback and self.feedback.strip()):
             raise ValueError("Feedback is required when a student is rejected.")
         return self
@@ -124,11 +138,38 @@ def current_teacher(token: str = Depends(oauth2_scheme), db: Session = Depends(g
     return teacher
 
 def participant_out(p: Participant):
-    return ParticipantOut(id=p.id, interview_id=p.interview_id, student_id=p.student_id, student_name=p.student.name, attendance=p.attendance, result=p.result, feedback=p.feedback)
+    return ParticipantOut(
+        id=p.id,
+        interview_id=p.interview_id,
+        student_id=p.student_id,
+        student_name=p.student.name,
+        attendance=p.attendance,
+        result=p.result,
+        feedback=p.feedback,
+        compensation=p.compensation or p.interview.compensation,
+    )
 
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    interview_columns = {
+        column["name"] for column in inspect(engine).get_columns("interviews")
+    }
+    if "compensation" not in interview_columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE interviews ADD COLUMN compensation VARCHAR(120)"
+            )
+    participant_columns = {
+        column["name"]
+        for column in inspect(engine).get_columns("interview_participants")
+    }
+    if "compensation" not in participant_columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE interview_participants ADD COLUMN compensation VARCHAR(120)"
+            )
+
     db = SessionLocal()
     try:
         if not db.query(Teacher).filter_by(username=settings.admin_username).first():
@@ -181,7 +222,33 @@ def delete_student(student_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/interviews", response_model=list[InterviewOut], dependencies=[Depends(current_teacher)])
 def list_interviews(db: Session = Depends(get_db)):
-    return db.query(Interview).order_by(Interview.scheduled_at.desc()).all()
+    return db.query(Interview).order_by(Interview.scheduled_at).all()
+
+@app.get("/api/results", dependencies=[Depends(current_teacher)])
+def selected_results(db: Session = Depends(get_db)):
+    rows = (
+        db.query(Participant, Student, Interview)
+        .join(Student, Participant.student_id == Student.id)
+        .join(Interview, Participant.interview_id == Interview.id)
+        .filter(Participant.result == "Selected")
+        .order_by(Interview.scheduled_at.desc(), Student.name)
+        .all()
+    )
+    return {
+        "selected_count": len({participant.student_id for participant, _, _ in rows}),
+        "selections": [
+            SelectedResultOut(
+                id=participant.id,
+                student_name=student.name,
+                company=interview.company,
+                role=interview.role,
+                work_location=interview.location,
+                compensation=participant.compensation or interview.compensation,
+                scheduled_at=interview.scheduled_at,
+            )
+            for participant, student, interview in rows
+        ],
+    }
 
 @app.post("/api/interviews", response_model=InterviewOut, status_code=201, dependencies=[Depends(current_teacher)])
 def add_interview(payload: InterviewIn, db: Session = Depends(get_db)):
@@ -232,6 +299,7 @@ def update_participant(participant_id: int, payload: ParticipantUpdate, db: Sess
     if not p: raise HTTPException(404, "Interview participant not found")
     p.attendance = payload.attendance; p.result = payload.result
     p.feedback = payload.feedback.strip() if payload.feedback else None
+    p.compensation = payload.compensation.strip() if payload.compensation else None
     db.commit(); db.refresh(p); return participant_out(p)
 
 @app.get("/api/students/{student_id}/history", dependencies=[Depends(current_teacher)])

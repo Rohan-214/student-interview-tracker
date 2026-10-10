@@ -17,10 +17,12 @@ import {
   RefreshCw,
   Pencil,
   Trash2,
+  Trophy,
 } from "lucide-react";
 import "./index.css";
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+const ABSENT_INTERVIEW_FEEDBACK = "Student did not attend the interview.";
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [username, setUsername] = useState(
@@ -30,6 +32,7 @@ function App() {
   const [dashboard, setDashboard] = useState(null);
   const [students, setStudents] = useState([]);
   const [interviews, setInterviews] = useState([]);
+  const [results, setResults] = useState({ selected_count: 0, selections: [] });
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -106,14 +109,16 @@ function App() {
     if (!token) return;
     setError("");
     try {
-      const [d, s, i] = await Promise.all([
+      const [d, s, i, r] = await Promise.all([
         api("/dashboard"),
         api("/students"),
         api("/interviews"),
+        api("/results"),
       ]);
       setDashboard(d);
       setStudents(s);
       setInterviews(i);
+      setResults(r);
     } catch (e) {
       setError(e.message);
     }
@@ -290,6 +295,7 @@ function App() {
       attendance: form.attendance,
       result: form.result,
       feedback: form.feedback,
+      compensation: form.compensation,
     };
     try {
       await api(`/participants/${p.id}`, {
@@ -315,6 +321,21 @@ function App() {
       ),
     [students, query],
   );
+  const now = Date.now();
+  const upcomingInterviews = interviews
+    .filter((interview) => new Date(interview.scheduled_at).getTime() >= now)
+    .sort(
+      (a, b) =>
+        new Date(a.scheduled_at).getTime() -
+        new Date(b.scheduled_at).getTime(),
+    );
+  const pastInterviews = interviews
+    .filter((interview) => new Date(interview.scheduled_at).getTime() < now)
+    .sort(
+      (a, b) =>
+        new Date(b.scheduled_at).getTime() -
+        new Date(a.scheduled_at).getTime(),
+    );
   if (!token)
     return (
       <div className="min-h-screen flex items-center justify-center p-5">
@@ -373,6 +394,7 @@ function App() {
     ["Dashboard", LayoutDashboard],
     ["Students", Users],
     ["Interviews", CalendarDays],
+    ["Results", Trophy],
   ];
   return (
     <div className="min-h-screen md:flex">
@@ -701,49 +723,175 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {interviews.map((i) => (
-                      <tr key={i.id}>
-                        <td>
-                          <div className="font-semibold">{i.company}</div>
-                          <div className="mt-1 text-sm muted">{i.role}</div>
-                        </td>
-                        <td>{new Date(i.scheduled_at).toLocaleString()}</td>
-                        <td>{i.mode}</td>
-                        <td className="align-top flex justify-between">
-                            <div>   
+                    {upcomingInterviews.length > 0 && (
+                      <>
+                        <tr>
+                          <td
+                            colSpan="4"
+                            className="bg-slate-50 text-sm font-semibold text-slate-700"
+                          >
+                            Upcoming interviews
+                          </td>
+                        </tr>
+                        {upcomingInterviews.map((i) => (
+                          <tr key={i.id}>
+                            <td>
+                              <div className="font-semibold">{i.company}</div>
+                              <div className="mt-1 text-sm muted">{i.role}</div>
+                            </td>
+                            <td>{new Date(i.scheduled_at).toLocaleString()}</td>
+                            <td>{i.mode}</td>
+                            <td className="align-top">
+                              <div className="flex items-center justify-between gap-2">
                                 <button
-                                    className="text-sm font-semibold text-indigo-700"
-                                    onClick={() => openParticipants(i)}>
-                                    Attendance & results
+                                  className="text-sm font-semibold text-indigo-700"
+                                  onClick={() => openParticipants(i)}
+                                >
+                                  Attendance & results
                                 </button>
-                            </div>    
-                          <div className="flex items-center justify-end gap-2">
-                            <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
-                              <button
-                                title="Modify interview"
-                                className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                                onClick={() => openEditInterview(i)}
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                title="Delete interview"
-                                className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
-                                onClick={() => deleteInterview(i.id)}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                                <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                                  <button
+                                    title="Modify interview"
+                                    className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                                    onClick={() => openEditInterview(i)}
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                  <button
+                                    title="Delete interview"
+                                    className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                                    onClick={() => deleteInterview(i.id)}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
+                    {pastInterviews.length > 0 && (
+                      <>
+                        <tr>
+                          <td
+                            colSpan="4"
+                            className="bg-slate-50 text-sm font-semibold text-slate-700"
+                          >
+                            Past interviews
+                          </td>
+                        </tr>
+                        {pastInterviews.map((i) => (
+                          <tr key={i.id}>
+                            <td>
+                              <div className="font-semibold">{i.company}</div>
+                              <div className="mt-1 text-sm muted">{i.role}</div>
+                            </td>
+                            <td>{new Date(i.scheduled_at).toLocaleString()}</td>
+                            <td>{i.mode}</td>
+                            <td className="align-top">
+                              <div className="flex items-center justify-between gap-2">
+                                <button
+                                  className="text-sm font-semibold text-indigo-700"
+                                  onClick={() => openParticipants(i)}
+                                >
+                                  Attendance & results
+                                </button>
+                                <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                                  <button
+                                    title="Modify interview"
+                                    className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                                    onClick={() => openEditInterview(i)}
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                  <button
+                                    title="Delete interview"
+                                    className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                                    onClick={() => deleteInterview(i.id)}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
                   </tbody>
                 </table>
               </div>
             ) : (
               <Empty text="No interviews scheduled yet." />
             )}
+          </div>
+        )}
+        {page === "Results" && (
+          <div className="space-y-6">
+            <div className="card p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-bold">Selected students</h2>
+                  <p className="mt-1 text-sm muted">
+                    Students selected across all interview schedules.
+                  </p>
+                </div>
+                <div className="rounded-xl bg-green-50 px-5 py-3 text-center text-green-800">
+                  <div className="text-3xl font-bold">
+                    {results.selected_count}
+                  </div>
+                  <div className="text-xs font-semibold">students selected</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card overflow-hidden">
+              <div className="border-b p-5">
+                <h2 className="font-bold">Selection details</h2>
+              </div>
+              {results.selections.length ? (
+                <div className="overflow-x-auto">
+                  <table className="table w-full">
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Company / role</th>
+                        <th>Work location</th>
+                        <th>Salary / stipend</th>
+                        <th>Interview date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.selections.map((selection) => (
+                        <tr key={selection.id}>
+                          <td className="font-semibold">
+                            {selection.student_name}
+                          </td>
+                          <td>
+                            <div className="font-semibold">
+                              {selection.company}
+                            </div>
+                            <div className="mt-1 text-sm muted">
+                              {selection.role}
+                            </div>
+                          </td>
+                          <td>{selection.work_location || "Not provided"}</td>
+                          <td>{selection.compensation || "Not provided"}</td>
+                          <td>
+                            {new Date(
+                              selection.scheduled_at,
+                            ).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <Empty text="No students have been marked as selected yet." />
+              )}
+            </div>
           </div>
         )}
         {page === "Interview details" && selectedInterview && (
@@ -986,7 +1134,7 @@ function App() {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label>Meeting link / location</label>
+                <label>Work location / meeting link</label>
                 <input name="location" placeholder="Optional" />
               </div>
               <div className="sm:col-span-2">
@@ -1082,7 +1230,7 @@ function App() {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label>Meeting link / location</label>
+                <label>Work location / meeting link</label>
                 <input
                   name="location"
                   defaultValue={editingInterview.location || ""}
@@ -1142,8 +1290,15 @@ function App() {
 }
 function ParticipantEditor({ participant: p, onSave }) {
   const [attendance, setAttendance] = useState(p.attendance);
-  const [result, setResult] = useState(p.result);
-  const [feedback, setFeedback] = useState(p.feedback || "");
+  const [result, setResult] = useState(
+    p.attendance === "Absent" ? "Rejected" : p.result,
+  );
+  const [feedback, setFeedback] = useState(
+    p.attendance === "Absent"
+      ? ABSENT_INTERVIEW_FEEDBACK
+      : p.feedback || "",
+  );
+  const [compensation, setCompensation] = useState(p.compensation || "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   async function submit(e) {
@@ -1154,7 +1309,7 @@ function ParticipantEditor({ participant: p, onSave }) {
     }
     setSaving(true);
     setErr("");
-    await onSave(p, { attendance, result, feedback });
+    await onSave(p, { attendance, result, feedback, compensation });
     setSaving(false);
   }
   return (
@@ -1170,7 +1325,14 @@ function ParticipantEditor({ participant: p, onSave }) {
         <label>Attendance</label>
         <select
           value={attendance}
-          onChange={(e) => setAttendance(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value;
+            setAttendance(value);
+            if (value === "Absent") {
+              setResult("Rejected");
+              setFeedback(ABSENT_INTERVIEW_FEEDBACK);
+            }
+          }}
         >
           <option>Not marked</option>
           <option>Present</option>
@@ -1179,28 +1341,47 @@ function ParticipantEditor({ participant: p, onSave }) {
       </div>
       <div>
         <label>Interview result</label>
-        <select value={result} onChange={(e) => setResult(e.target.value)}>
+        <select
+          value={result}
+          disabled={attendance === "Absent"}
+          onChange={(e) => setResult(e.target.value)}
+        >
           <option>Pending</option>
           <option>Selected</option>
           <option>Rejected</option>
         </select>
       </div>
       <div>
-        <label>
-          {result === "Rejected" ? "Feedback (required)" : "Feedback / notes"}
-        </label>
-        <textarea
-          rows="2"
-          value={feedback}
-          onChange={(e) => setFeedback(e.target.value)}
-          placeholder={
-            result === "Rejected"
-              ? "Explain what the student should improve…"
-              : "Optional notes"
-          }
-          required={result === "Rejected"}
-        />
-        {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
+        {result === "Selected" ? (
+          <>
+            <label>Salary / stipend</label>
+            <input
+              value={compensation}
+              onChange={(e) => setCompensation(e.target.value)}
+              maxLength={120}
+              placeholder="e.g. ₹6 LPA or ₹25,000/month"
+            />
+          </>
+        ) : (
+          <>
+            <label>
+              {result === "Rejected" ? "Feedback (required)" : "Feedback / notes"}
+            </label>
+            <textarea
+              rows="2"
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              readOnly={attendance === "Absent"}
+              placeholder={
+                result === "Rejected"
+                  ? "Explain what the student should improve…"
+                  : "Optional notes"
+              }
+              required={result === "Rejected"}
+            />
+            {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
+          </>
+        )}
       </div>
       <button className="btn btn-primary" disabled={saving}>
         {saving ? "Saving…" : "Save"}
