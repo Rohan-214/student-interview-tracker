@@ -15,6 +15,8 @@ import {
   ChevronRight,
   History,
   RefreshCw,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import "./index.css";
 
@@ -32,8 +34,12 @@ function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [studentModal, setStudentModal] = useState(false);
+  const [editStudentModal, setEditStudentModal] = useState(false);
   const [interviewModal, setInterviewModal] = useState(false);
+  const [editInterviewModal, setEditInterviewModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editingInterview, setEditingInterview] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [history, setHistory] = useState(null);
   const [query, setQuery] = useState("");
@@ -168,6 +174,113 @@ function App() {
       setInterviewModal(false);
       setNotice("Interview schedule created");
       refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function updateStudent(e) {
+    e.preventDefault();
+    if (!editingStudent) return;
+
+    const f = new FormData(e.currentTarget);
+    const data = {
+      name: f.get("name").trim(),
+      email: f.get("email") || null,
+      phone: f.get("phone") || null,
+      course: f.get("course") || "Data Analytics",
+    };
+
+    try {
+      await api(`/students/${editingStudent.id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+      setEditStudentModal(false);
+      setEditingStudent(null);
+      setNotice("Student updated successfully");
+      refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function updateInterview(e) {
+    e.preventDefault();
+    if (!editingInterview) return;
+
+    const f = new FormData(e.currentTarget);
+    const data = {
+      company: f.get("company").trim(),
+      role: f.get("role").trim(),
+      scheduled_at: new Date(f.get("scheduled_at")).toISOString(),
+      mode: f.get("mode"),
+      location: f.get("location") || null,
+      notes: f.get("notes") || null,
+      student_ids: f.getAll("student_ids").map(Number),
+    };
+
+    try {
+      await api(`/interviews/${editingInterview.id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+      setEditInterviewModal(false);
+      setEditingInterview(null);
+      setNotice("Interview updated successfully");
+      refresh();
+      if (selectedInterview && selectedInterview.id === editingInterview.id) {
+        setSelectedInterview({
+          ...selectedInterview,
+          ...data,
+          scheduled_at: data.scheduled_at,
+        });
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function deleteStudent(id) {
+    if (!window.confirm("Delete this student?")) return;
+
+    try {
+      await api(`/students/${id}`, { method: "DELETE" });
+      setNotice("Student deleted");
+      if (history && history.student && history.student.id === id) {
+        setPage("Students");
+        setHistory(null);
+      }
+      refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function deleteInterview(id) {
+    if (!window.confirm("Delete this interview schedule?")) return;
+
+    try {
+      await api(`/interviews/${id}`, { method: "DELETE" });
+      setNotice("Interview deleted");
+      if (selectedInterview && selectedInterview.id === id) {
+        setPage("Interviews");
+        setSelectedInterview(null);
+        setParticipants([]);
+      }
+      refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  function openEditStudent(student) {
+    setEditingStudent(student);
+    setEditStudentModal(true);
+  }
+  async function openEditInterview(interview) {
+    try {
+      const rows = await api(`/interviews/${interview.id}/participants`);
+      setEditingInterview({
+        ...interview,
+        student_ids: rows.map((row) => row.student_id),
+      });
+      setEditInterviewModal(true);
     } catch (e) {
       setError(e.message);
     }
@@ -524,13 +637,31 @@ function App() {
                         </td>
                         <td>{s.course}</td>
                         <td>
-                          <button
-                            className="text-sm font-semibold text-indigo-700"
-                            onClick={() => openHistory(s)}
-                          >
-                            <History className="mr-1 inline" size={15} /> View
-                            history
-                          </button>
+                          <div className="flex items-center justify-between gap-3">
+                            <button
+                              className="text-sm font-semibold text-indigo-700"
+                              onClick={() => openHistory(s)}
+                            >
+                              <History className="mr-1 inline" size={15} /> View
+                              history
+                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                title="Modify student"
+                                className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                                onClick={() => openEditStudent(s)}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                title="Delete student"
+                                className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                                onClick={() => deleteStudent(s.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -578,13 +709,32 @@ function App() {
                         </td>
                         <td>{new Date(i.scheduled_at).toLocaleString()}</td>
                         <td>{i.mode}</td>
-                        <td>
-                          <button
-                            className="text-sm font-semibold text-indigo-700"
-                            onClick={() => openParticipants(i)}
-                          >
-                            Attendance & results →
-                          </button>
+                        <td className="align-top flex justify-between">
+                            <div>   
+                                <button
+                                    className="text-sm font-semibold text-indigo-700"
+                                    onClick={() => openParticipants(i)}>
+                                    Attendance & results
+                                </button>
+                            </div>    
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
+                              <button
+                                title="Modify interview"
+                                className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                                onClick={() => openEditInterview(i)}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                title="Delete interview"
+                                className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                                onClick={() => deleteInterview(i.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -745,6 +895,64 @@ function App() {
           </form>
         </Modal>
       )}
+      {editStudentModal && editingStudent && (
+        <Modal
+          title="Modify student"
+          close={() => {
+            setEditStudentModal(false);
+            setEditingStudent(null);
+          }}
+        >
+          <form onSubmit={updateStudent} className="space-y-4">
+            <div>
+              <label>Full name *</label>
+              <input
+                name="name"
+                defaultValue={editingStudent.name}
+                required
+                maxLength="140"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label>Email</label>
+              <input
+                name="email"
+                type="email"
+                defaultValue={editingStudent.email || ""}
+              />
+            </div>
+            <div>
+              <label>Phone</label>
+              <input
+                name="phone"
+                type="tel"
+                defaultValue={editingStudent.phone || ""}
+              />
+            </div>
+            <div>
+              <label>Course</label>
+              <input
+                name="course"
+                defaultValue={editingStudent.course || "Data Analytics"}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setEditStudentModal(false);
+                  setEditingStudent(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button className="btn btn-primary">Save changes</button>
+            </div>
+          </form>
+        </Modal>
+      )}
       {interviewModal && (
         <Modal
           title="Schedule an interview"
@@ -822,6 +1030,109 @@ function App() {
                 Cancel
               </button>
               <button className="btn btn-primary">Create schedule</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {editInterviewModal && editingInterview && (
+        <Modal
+          title="Modify interview"
+          close={() => {
+            setEditInterviewModal(false);
+            setEditingInterview(null);
+          }}
+          wide
+        >
+          <form onSubmit={updateInterview} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label>Company name *</label>
+                <input
+                  name="company"
+                  defaultValue={editingInterview.company}
+                  required
+                />
+              </div>
+              <div>
+                <label>Job role *</label>
+                <input
+                  name="role"
+                  defaultValue={editingInterview.role}
+                  required
+                  placeholder="e.g. Junior Data Analyst"
+                />
+              </div>
+              <div>
+                <label>Date and time *</label>
+                <input
+                  name="scheduled_at"
+                  type="datetime-local"
+                  defaultValue={new Date(editingInterview.scheduled_at)
+                    .toISOString()
+                    .slice(0, 16)}
+                  required
+                />
+              </div>
+              <div>
+                <label>Interview mode</label>
+                <select name="mode" defaultValue={editingInterview.mode}>
+                  <option>Online</option>
+                  <option>In-person</option>
+                  <option>Phone</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label>Meeting link / location</label>
+                <input
+                  name="location"
+                  defaultValue={editingInterview.location || ""}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label>Notes</label>
+                <textarea
+                  name="notes"
+                  rows="2"
+                  defaultValue={editingInterview.notes || ""}
+                  placeholder="Rounds, documents to bring, etc."
+                />
+              </div>
+            </div>
+            <div>
+              <label>Students participating</label>
+              <div className="mt-2 grid max-h-48 gap-2 overflow-y-auto rounded-lg border p-3 sm:grid-cols-2">
+                {students.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-2 font-normal"
+                  >
+                    <input
+                      type="checkbox"
+                      name="student_ids"
+                      value={s.id}
+                      className="h-4 w-4"
+                      defaultChecked={
+                        editingInterview.student_ids?.includes(s.id) || false
+                      }
+                    />
+                    {s.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setEditInterviewModal(false);
+                  setEditingInterview(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button className="btn btn-primary">Save changes</button>
             </div>
           </form>
         </Modal>

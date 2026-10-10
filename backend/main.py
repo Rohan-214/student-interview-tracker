@@ -192,6 +192,34 @@ def add_interview(payload: InterviewIn, db: Session = Depends(get_db)):
         db.add(Participant(interview_id=interview.id, student_id=sid))
     db.commit(); db.refresh(interview); return interview
 
+@app.put("/api/interviews/{interview_id}", response_model=InterviewOut, dependencies=[Depends(current_teacher)])
+def update_interview(interview_id: int, payload: InterviewIn, db: Session = Depends(get_db)):
+    interview = db.get(Interview, interview_id)
+    if not interview: raise HTTPException(404, "Interview not found")
+
+    for key, value in payload.model_dump(exclude={"student_ids"}).items():
+        setattr(interview, key, value)
+
+    existing_students = {p.student_id for p in interview.participants}
+    desired_students = set(payload.student_ids)
+
+    for sid in sorted(desired_students - existing_students):
+        if not db.get(Student, sid): raise HTTPException(400, f"Student {sid} does not exist")
+        db.add(Participant(interview_id=interview.id, student_id=sid))
+
+    for sid in sorted(existing_students - desired_students):
+        participant = db.query(Participant).filter_by(interview_id=interview_id, student_id=sid).first()
+        if participant:
+            db.delete(participant)
+
+    db.commit(); db.refresh(interview); return interview
+
+@app.delete("/api/interviews/{interview_id}", status_code=204, dependencies=[Depends(current_teacher)])
+def delete_interview(interview_id: int, db: Session = Depends(get_db)):
+    interview = db.get(Interview, interview_id)
+    if not interview: raise HTTPException(404, "Interview not found")
+    db.delete(interview); db.commit()
+
 @app.get("/api/interviews/{interview_id}/participants", response_model=list[ParticipantOut], dependencies=[Depends(current_teacher)])
 def list_participants(interview_id: int, db: Session = Depends(get_db)):
     if not db.get(Interview, interview_id): raise HTTPException(404, "Interview not found")
