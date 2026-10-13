@@ -192,7 +192,11 @@ def dashboard(db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     students = db.query(Student).count()
     interviews = db.query(Interview).count()
-    selected = db.query(Participant).filter_by(result="Selected").count()
+    selected = (
+        db.query(func.count(func.distinct(Participant.student_id)))
+        .filter(Participant.result == "Selected")
+        .scalar()
+    )
     rejected = db.query(Participant).filter_by(result="Rejected").count()
     pending = db.query(Participant).filter_by(result="Pending").count()
     upcoming = db.query(Interview).filter(Interview.scheduled_at >= now).order_by(Interview.scheduled_at).limit(5).all()

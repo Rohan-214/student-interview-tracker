@@ -742,29 +742,21 @@ function App() {
                             <td>{new Date(i.scheduled_at).toLocaleString()}</td>
                             <td>{i.mode}</td>
                             <td className="align-top">
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center justify-end gap-1">
                                 <button
-                                  className="text-sm font-semibold text-indigo-700"
-                                  onClick={() => openParticipants(i)}
+                                  title="Modify interview"
+                                  className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                                  onClick={() => openEditInterview(i)}
                                 >
-                                  Attendance & results
+                                  <Pencil size={16} />
                                 </button>
-                                <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
-                                  <button
-                                    title="Modify interview"
-                                    className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                                    onClick={() => openEditInterview(i)}
-                                  >
-                                    <Pencil size={16} />
-                                  </button>
-                                  <button
-                                    title="Delete interview"
-                                    className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
-                                    onClick={() => deleteInterview(i.id)}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
+                                <button
+                                  title="Delete interview"
+                                  className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
+                                  onClick={() => deleteInterview(i.id)}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -797,22 +789,6 @@ function App() {
                                 >
                                   Attendance & results
                                 </button>
-                                <div className="flex items-center gap-1 border-l border-slate-200 pl-2">
-                                  <button
-                                    title="Modify interview"
-                                    className="rounded-md p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                                    onClick={() => openEditInterview(i)}
-                                  >
-                                    <Pencil size={16} />
-                                  </button>
-                                  <button
-                                    title="Delete interview"
-                                    className="rounded-md p-1.5 text-red-600 transition hover:bg-red-50 hover:text-red-700"
-                                    onClick={() => deleteInterview(i.id)}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
                               </div>
                             </td>
                           </tr>
@@ -859,7 +835,6 @@ function App() {
                         <th>Company / role</th>
                         <th>Work location</th>
                         <th>Salary / stipend</th>
-                        <th>Interview date</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -878,11 +853,6 @@ function App() {
                           </td>
                           <td>{selection.work_location || "Not provided"}</td>
                           <td>{selection.compensation || "Not provided"}</td>
-                          <td>
-                            {new Date(
-                              selection.scheduled_at,
-                            ).toLocaleDateString()}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
