@@ -46,13 +46,13 @@ export function StudentsPage() {
     const data = readStudentForm(event.currentTarget);
     try {
       if (editingStudent) {
-        await request(`/students/${editingStudent.id}`, {
+        await request(`/api/students/${editingStudent.id}`, {
           method: "PUT",
           body: JSON.stringify(data),
         });
         setNotice("Student updated successfully");
       } else {
-        await request("/students", {
+        await request("/api/students", {
           method: "POST",
           body: JSON.stringify(data),
         });
@@ -68,7 +68,7 @@ export function StudentsPage() {
   async function deleteStudent(student) {
     if (!window.confirm("Delete this student?")) return;
     try {
-      await request(`/students/${student.id}`, { method: "DELETE" });
+      await request(`/api/students/${student.id}`, { method: "DELETE" });
       setNotice("Student deleted");
       await refresh();
     } catch (deleteError) {
