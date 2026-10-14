@@ -70,6 +70,7 @@ class Participant(Base):
     result: Mapped[str] = mapped_column(String(20), default="Pending")
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     compensation: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    work_location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     interview: Mapped[Interview] = relationship(back_populates="participants")
     student: Mapped[Student] = relationship(back_populates="participations")
@@ -102,12 +103,13 @@ class SelectedResultOut(BaseModel):
     compensation: str | None
     scheduled_at: datetime
 class ParticipantOut(BaseModel):
-    id: int; interview_id: int; student_id: int; student_name: str; attendance: str; result: str; feedback: str | None; compensation: str | None
+    id: int; interview_id: int; student_id: int; student_name: str; attendance: str; result: str; feedback: str | None; compensation: str | None; work_location: str | None
 class ParticipantUpdate(BaseModel):
     attendance: str = Field(pattern="^(Not marked|Present|Absent)$")
     result: str = Field(pattern="^(Pending|Selected|Rejected)$")
     feedback: str | None = None
     compensation: str | None = Field(default=None, max_length=120)
+    work_location: str | None = Field(default=None, max_length=255)
     @model_validator(mode="after")
     def rejection_needs_feedback(self):
         if self.attendance == "Absent":
@@ -147,6 +149,7 @@ def participant_out(p: Participant):
         result=p.result,
         feedback=p.feedback,
         compensation=p.compensation or p.interview.compensation,
+        work_location=p.work_location,
     )
 
 @app.on_event("startup")
@@ -168,6 +171,11 @@ def startup():
         with engine.begin() as connection:
             connection.exec_driver_sql(
                 "ALTER TABLE interview_participants ADD COLUMN compensation VARCHAR(120)"
+            )
+    if "work_location" not in participant_columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE interview_participants ADD COLUMN work_location VARCHAR(255)"
             )
 
     db = SessionLocal()
@@ -246,7 +254,7 @@ def selected_results(db: Session = Depends(get_db)):
                 student_name=student.name,
                 company=interview.company,
                 role=interview.role,
-                work_location=interview.location,
+                work_location=participant.work_location or interview.location,
                 compensation=participant.compensation or interview.compensation,
                 scheduled_at=interview.scheduled_at,
             )
@@ -304,6 +312,7 @@ def update_participant(participant_id: int, payload: ParticipantUpdate, db: Sess
     p.attendance = payload.attendance; p.result = payload.result
     p.feedback = payload.feedback.strip() if payload.feedback else None
     p.compensation = payload.compensation.strip() if payload.compensation else None
+    p.work_location = payload.work_location.strip() if payload.work_location else None
     db.commit(); db.refresh(p); return participant_out(p)
 
 @app.get("/api/students/{student_id}/history", dependencies=[Depends(current_teacher)])

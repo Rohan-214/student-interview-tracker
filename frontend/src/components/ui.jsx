@@ -68,6 +68,9 @@ export function ParticipantEditor({ participant, onSave }) {
   const [compensation, setCompensation] = useState(
     participant.compensation || "",
   );
+  const [workLocation, setWorkLocation] = useState(
+    participant.work_location || "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -81,7 +84,13 @@ export function ParticipantEditor({ participant, onSave }) {
     setSaving(true);
     setError("");
     try {
-      await onSave(participant, { attendance, result, feedback, compensation });
+      await onSave(participant, {
+        attendance,
+        result,
+        feedback,
+        compensation,
+        workLocation,
+      });
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -128,17 +137,28 @@ export function ParticipantEditor({ participant, onSave }) {
           <option>Rejected</option>
         </select>
       </div>
-      <div>
+      <div className="grid gap-3">
         {result === "Selected" ? (
-          <>
-            <label>Salary / stipend</label>
-            <input
-              value={compensation}
-              onChange={(event) => setCompensation(event.target.value)}
-              maxLength={120}
-              placeholder="e.g. ₹6 LPA or ₹25,000/month"
-            />
-          </>
+          <div className="flex justify-evenly">
+            <div >
+              <label>Salary / stipend</label>
+              <input
+                value={compensation}
+                onChange={(event) => setCompensation(event.target.value)}
+                maxLength={120}
+                placeholder="e.g. ₹6 LPA or ₹25,000/month"
+              />
+            </div>
+            <div>
+              <label>Job location</label>
+              <input
+                value={workLocation}
+                onChange={(event) => setWorkLocation(event.target.value)}
+                maxLength={255}
+                placeholder="e.g. Bengaluru or Remote"
+              />
+            </div>
+          </div>
         ) : (
           <>
             <label>

@@ -39,6 +39,7 @@ export function InterviewDetailsPage() {
       result: form.result,
       feedback: form.feedback,
       compensation: form.compensation,
+      work_location: form.workLocation,
     };
     await request(`/participants/${participant.id}`, {
       method: "PUT",

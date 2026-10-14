@@ -32,7 +32,7 @@ export function ResultsPage() {
                 <tr>
                   <th>Student</th>
                   <th>Company / role</th>
-                  <th>Work location</th>
+                  <th>Job location</th>
                   <th>Salary / stipend</th>
                 </tr>
               </thead>
