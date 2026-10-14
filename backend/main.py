@@ -87,9 +87,15 @@ class InterviewIn(BaseModel):
     role: str = Field(min_length=1, max_length=140)
     scheduled_at: datetime
     mode: str = "Online"
-    location: str | None = None
+    location: str = Field(min_length=1, max_length=255)
     notes: str | None = None
     student_ids: list[int] = []
+    @model_validator(mode="after")
+    def location_must_not_be_blank(self):
+        self.location = self.location.strip()
+        if not self.location:
+            raise ValueError("Interview location is required.")
+        return self
 class InterviewOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int; company: str; role: str; scheduled_at: datetime; mode: str; location: str | None; compensation: str | None; notes: str | None
