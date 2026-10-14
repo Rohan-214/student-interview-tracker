@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
 
   const signIn = useCallback(async (credentials) => {
     const body = new URLSearchParams(credentials);
-    const result = await apiRequest("/api/auth/login", {
+    const result = await apiRequest("/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
