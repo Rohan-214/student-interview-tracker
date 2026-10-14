@@ -44,7 +44,7 @@ export function TrackerProvider({ children }) {
       const [nextDashboard, nextStudents, nextInterviews, nextResults] =
         await Promise.all([
           request("/dashboard"),
-          request("/api/students"),
+          request("/students"),
           request("/interviews"),
           request("/results"),
         ]);
