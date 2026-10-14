@@ -53,6 +53,6 @@ Open http://localhost:5173 and sign in using the credentials set in `backend/.en
 
 ## Notes
 - Keep `.env` private; it contains database credentials and a signing secret.
-- The frontend defaults to API URL `http://127.0.0.1:8000/api`. To change it, create `frontend/.env` with `VITE_API_URL=http://127.0.0.1:8000/api`.
+- The frontend defaults to API URL `http://127.0.0.1:8000/api`. Set Netlify's `VITE_API_URL` to the backend base URL including `/api` (for example, `https://your-backend.example.com/api`). The frontend appends endpoint paths to this base.
 - This is a local-development starter. Before public deployment, use HTTPS, strong unique secrets, backups, rate limiting, and a proper password-change flow. Do not expose PostgreSQL directly to the internet.
 - Database tables are created automatically for this initial version. For production changes, add Alembic migrations.

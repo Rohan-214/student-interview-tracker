@@ -37,7 +37,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
 TOKEN_MINUTES = 60 * 8
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 class Base(DeclarativeBase): pass
 
@@ -203,7 +203,7 @@ def startup():
 @app.get("/api/health")
 def health(): return {"status": "ok"}
 
-@app.post("/auth/login", response_model=LoginOut)
+@app.post("/api/auth/login", response_model=LoginOut)
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     teacher = db.query(Teacher).filter_by(username=form.username).first()
     if not teacher or not pwd_context.verify(form.password, teacher.password_hash):
