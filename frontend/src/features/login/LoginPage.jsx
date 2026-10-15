@@ -7,7 +7,7 @@ export function LoginPage() {
   const { token, signIn } = useAuth();
   const location = useLocation();
   const [credentials, setCredentials] = useState({
-    username: "teacher",
+    username: "Admin",
     password: "",
   });
   const [error, setError] = useState("");
